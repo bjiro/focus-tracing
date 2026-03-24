@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Observer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&family=Syne:wght@400;600;800&display=swap');
+
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #181818;
+    --border: #222222;
+    --accent: #c8f562;
+    --accent2: #ff6b35;
+    --muted: #555;
+    --text: #e8e8e8;
+    --text2: #999;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    grid-template-rows: 52px 1fr;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* Header */
+  header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .logo { font-size: 14px; font-weight: 800; letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent); font-family: var(--mono); }
+  .header-right { display: flex; gap: 20px; align-items: center; }
+  .date-label { font-family: var(--mono); font-size: 11px; color: var(--text2); }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* Sidebar */
+  nav {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    overflow-y: auto;
+  }
+  .nav-section { margin-bottom: 24px; }
+  .nav-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; padding: 0 16px; margin-bottom: 8px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 16px; cursor: pointer;
+    font-size: 13px; color: var(--text2);
+    border-left: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .nav-item:hover { color: var(--text); background: var(--surface2); }
+  .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(200,245,98,0.05); }
+  .nav-icon { font-size: 14px; width: 16px; text-align: center; }
+
+  /* Main */
+  main { overflow-y: auto; padding: 28px; display: flex; flex-direction: column; gap: 20px; }
+
+  /* Load area */
+  .load-area {
+    border: 1.5px dashed var(--border);
+    border-radius: 8px;
+    padding: 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .load-area:hover { border-color: var(--accent); }
+  .load-area.dragging { border-color: var(--accent); background: rgba(200,245,98,0.04); }
+  .load-hint { font-family: var(--mono); font-size: 11px; color: var(--text2); margin-top: 8px; }
+  .load-btn {
+    background: var(--accent); color: #000; border: none;
+    padding: 8px 20px; border-radius: 4px; cursor: pointer;
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+    margin-top: 12px;
+  }
+  #file-input { display: none; }
+
+  /* Stat row */
+  .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 18px 20px;
+  }
+  .stat-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.15em; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; }
+  .stat-value { font-size: 28px; font-weight: 800; color: var(--text); line-height: 1; }
+  .stat-sub { font-family: var(--mono); font-size: 10px; color: var(--text2); margin-top: 4px; }
+  .stat-card.accent .stat-value { color: var(--accent); }
+
+  /* Focus bar */
+  .focus-bar-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; }
+  .focus-bar-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.15em; color: var(--muted); text-transform: uppercase; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+  .focus-score-num { font-size: 20px; font-weight: 800; color: var(--accent); font-family: var(--mono); }
+  .track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--accent) 0%, #a8e04a 100%); transition: width 1s cubic-bezier(.23,1,.32,1); }
+  .focus-comment { font-family: var(--mono); font-size: 11px; color: var(--text2); margin-top: 10px; }
+
+  /* Two col */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+  /* Panel */
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+  .panel-title { font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+  .panel-title span { color: var(--text2); font-size: 10px; float: right; letter-spacing: 0; }
+
+  /* List items */
+  .list-item { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text); line-height: 1.5; }
+  .list-item:last-child { border-bottom: none; }
+  .list-item::before { content: "—"; color: var(--muted); margin-right: 8px; font-family: var(--mono); }
+  .list-item.learn::before { content: "↗"; color: var(--accent); }
+  .list-item.warn::before { content: "⚠"; color: var(--accent2); }
+  .list-item.pattern::before { content: "◎"; color: #888; }
+
+  /* Category breakdown */
+  .cat-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .cat-name { font-family: var(--mono); font-size: 11px; color: var(--text2); width: 90px; flex-shrink: 0; }
+  .cat-track { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .cat-fill { height: 100%; border-radius: 2px; background: var(--accent); opacity: 0.8; }
+  .cat-pct { font-family: var(--mono); font-size: 10px; color: var(--text2); width: 45px; text-align: right; }
+
+  /* Sessions */
+  .session { padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .session:last-child { border-bottom: none; }
+  .session-time { font-family: var(--mono); font-size: 10px; color: var(--accent); margin-bottom: 4px; }
+  .session-focus { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .session-outcome { font-size: 12px; color: var(--text2); }
+  .session-tools { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .tag { background: var(--surface2); border: 1px solid var(--border); border-radius: 3px; padding: 2px 7px; font-family: var(--mono); font-size: 9px; color: var(--text2); }
+
+  /* Suggestion */
+  .suggestion { background: rgba(200,245,98,0.06); border: 1px solid rgba(200,245,98,0.2); border-radius: 8px; padding: 18px 20px; }
+  .suggestion-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; }
+  .suggestion-text { font-size: 14px; color: var(--text); line-height: 1.6; }
+
+  /* Empty state */
+  .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 300px; gap: 12px; }
+  .empty-icon { font-size: 40px; opacity: 0.3; }
+  .empty-text { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: center; line-height: 1.8; }
+
+  /* Raw log */
+  .log-entry { font-family: var(--mono); font-size: 10px; color: var(--text2); padding: 6px 0; border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 70px 80px 1fr; gap: 12px; }
+  .log-entry:last-child { border-bottom: none; }
+  .log-time { color: var(--muted); }
+  .log-cat { color: var(--accent); }
+  .log-summary { color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .log-scroll { max-height: 280px; overflow-y: auto; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div class="logo">Observer</div>
+    <div class="header-right">
+      <span class="date-label" id="current-date"></span>
+      <div class="status-dot"></div>
+    </div>
+  </header>
+
+  <nav>
+    <div class="nav-section">
+      <div class="nav-label">Views</div>
+      <div class="nav-item active" onclick="showView('recap')"><span class="nav-icon">◈</span>Day Recap</div>
+      <div class="nav-item" onclick="showView('log')"><span class="nav-icon">≡</span>Raw Log</div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Data</div>
+      <div class="nav-item" onclick="document.getElementById('file-input').click()"><span class="nav-icon">↑</span>Load Recap</div>
+    </div>
+    <div class="nav-section" id="loaded-date-section" style="display:none">
+      <div class="nav-label">Loaded</div>
+      <div class="nav-item active" id="loaded-date-label" style="color:var(--accent); font-size:12px; font-family:var(--mono)"></div>
+    </div>
+  </nav>
+
+  <main id="main-content">
+    <div class="load-area" id="drop-zone">
+      <div style="font-size:28px; opacity:0.4">◈</div>
+      <div style="font-size:14px; font-weight:600; margin-top:12px">Load your recap</div>
+      <div class="load-hint">Drop a <code>YYYY-MM-DD_recap.json</code> file or click below</div>
+      <button class="load-btn" onclick="document.getElementById('file-input').click()">Choose file</button>
+      <input type="file" id="file-input" accept=".json" onchange="loadFile(event)">
+    </div>
+  </main>
+</div>
+
+<script>
+document.getElementById('current-date').textContent = new Date().toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+
+let recap = null;
+let logEntries = [];
+
+// Drag-drop
+const dz = document.getElementById('drop-zone');
+if (dz) {
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragging'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('dragging'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault(); dz.classList.remove('dragging');
+    const f = e.dataTransfer.files[0];
+    if (f) readFile(f);
+  });
+}
+
+function loadFile(e) { if (e.target.files[0]) readFile(e.target.files[0]); }
+
+function readFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      // Could be recap JSON or JSONL log
+      if (Array.isArray(data)) {
+        logEntries = data;
+        renderLog();
+      } else if (data.what_i_did) {
+        recap = data;
+        renderRecap();
+      } else {
+        alert('Unrecognized format. Expected a recap .json or log .jsonl file.');
+      }
+      document.getElementById('loaded-date-section').style.display = '';
+      document.getElementById('loaded-date-label').textContent = recap?.date || file.name;
+    } catch(err) {
+      // Try JSONL
+      try {
+        logEntries = e.target.result.trim().split('\n').map(l => JSON.parse(l));
+        renderLog();
+        document.getElementById('loaded-date-section').style.display = '';
+      } catch(e2) {
+        alert('Failed to parse file: ' + err.message);
+      }
+    }
+  };
+  reader.readAsText(file);
+}
+
+function showView(v) {
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  if (v === 'recap' && recap) renderRecap();
+  else if (v === 'log' && logEntries.length) renderLog();
+  else if (!recap && !logEntries.length) resetToLoad();
+}
+
+function resetToLoad() {
+  document.getElementById('main-content').innerHTML = `
+    <div class="load-area" id="drop-zone">
+      <div style="font-size:28px; opacity:0.4">◈</div>
+      <div style="font-size:14px; font-weight:600; margin-top:12px">Load your recap</div>
+      <div class="load-hint">Drop a <code>YYYY-MM-DD_recap.json</code> file or click below</div>
+      <button class="load-btn" onclick="document.getElementById('file-input').click()">Choose file</button>
+    </div>`;
+}
+
+function pct(str) {
+  const m = str.match(/(\d+)%/);
+  return m ? parseInt(m[1]) : 0;
+}
+
+function renderRecap() {
+  const r = recap;
+  const cats = r.time_breakdown || {};
+  const catRows = Object.entries(cats).map(([k,v]) => {
+    const p = pct(v);
+    return `<div class="cat-row">
+      <div class="cat-name">${k}</div>
+      <div class="cat-track"><div class="cat-fill" style="width:${p}%"></div></div>
+      <div class="cat-pct">${v}</div>
+    </div>`;
+  }).join('');
+
+  const did = (r.what_i_did||[]).filter(Boolean).map(x => `<div class="list-item">${x}</div>`).join('');
+  const learned = (r.what_i_learned||[]).filter(Boolean).map(x => `<div class="list-item learn">${x}</div>`).join('');
+  const mistakes = (r.mistakes_and_struggles||[]).filter(Boolean).map(x => `<div class="list-item warn">${x}</div>`).join('');
+  const patterns = (r.patterns||[]).filter(Boolean).map(x => `<div class="list-item pattern">${x}</div>`).join('');
+
+  const sessions = (r.work_sessions||[]).map(s => `
+    <div class="session">
+      <div class="session-time">${s.time_range||''}</div>
+      <div class="session-focus">${s.main_focus||''}</div>
+      <div class="session-outcome">→ ${s.outcome||''}</div>
+      <div class="session-tools">${(s.tools||[]).map(t=>`<span class="tag">${t}</span>`).join('')}</div>
+    </div>`).join('');
+
+  const focusPct = ((r.focus_score||0)/10*100);
+
+  document.getElementById('main-content').innerHTML = `
+    <div class="stat-row">
+      <div class="stat-card accent">
+        <div class="stat-label">Active Time</div>
+        <div class="stat-value">${r.active_hours||'—'}</div>
+        <div class="stat-sub">${r.total_captures||0} captures</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Sessions</div>
+        <div class="stat-value">${(r.work_sessions||[]).length}</div>
+        <div class="stat-sub">work blocks</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Learned</div>
+        <div class="stat-value">${(r.what_i_learned||[]).filter(Boolean).length}</div>
+        <div class="stat-sub">insights captured</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Issues</div>
+        <div class="stat-value">${(r.mistakes_and_struggles||[]).filter(Boolean).length}</div>
+        <div class="stat-sub">errors / struggles</div>
+      </div>
+    </div>
+
+    <div class="focus-bar-wrap">
+      <div class="focus-bar-label">Focus Score <span class="focus-score-num">${r.focus_score||'?'}/10</span></div>
+      <div class="track"><div class="fill" style="width:${focusPct}%"></div></div>
+      <div class="focus-comment">${r.focus_comment||''}</div>
+    </div>
+
+    <div class="two-col">
+      <div class="panel">
+        <div class="panel-title">Time Breakdown</div>
+        ${catRows || '<div class="empty-text">No data</div>'}
+      </div>
+      <div class="panel">
+        <div class="panel-title">Work Sessions</div>
+        ${sessions || '<div class="empty-text">No sessions detected</div>'}
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">What I Did <span>${(r.what_i_did||[]).filter(Boolean).length} items</span></div>
+      ${did || '<div style="color:var(--muted); font-size:12px; font-family:var(--mono)">None recorded</div>'}
+    </div>
+
+    <div class="two-col">
+      <div class="panel">
+        <div class="panel-title">What I Learned <span>${(r.what_i_learned||[]).filter(Boolean).length}</span></div>
+        ${learned || '<div style="color:var(--muted); font-size:12px; font-family:var(--mono)">No learning signals</div>'}
+      </div>
+      <div class="panel">
+        <div class="panel-title">Mistakes & Struggles <span>${(r.mistakes_and_struggles||[]).filter(Boolean).length}</span></div>
+        ${mistakes || '<div style="color:var(--muted); font-size:12px; font-family:var(--mono)">None detected</div>'}
+      </div>
+    </div>
+
+    ${patterns ? `<div class="panel"><div class="panel-title">Patterns</div>${patterns}</div>` : ''}
+
+    ${r.tomorrow_suggestion ? `
+    <div class="suggestion">
+      <div class="suggestion-label">↗ Tomorrow's Focus</div>
+      <div class="suggestion-text">${r.tomorrow_suggestion}</div>
+    </div>` : ''}
+  `;
+}
+
+function renderLog() {
+  const rows = logEntries.slice(-80).reverse().map(e => {
+    const t = (e.timestamp||'').slice(11,16);
+    const cat = e.category||'?';
+    const summary = e.task_summary || e.error || '';
+    return `<div class="log-entry">
+      <span class="log-time">${t}</span>
+      <span class="log-cat">${cat}</span>
+      <span class="log-summary">${summary}</span>
+    </div>`;
+  }).join('');
+
+  document.getElementById('main-content').innerHTML = `
+    <div class="panel">
+      <div class="panel-title">Raw Log Entries <span>${logEntries.length} total</span></div>
+      <div class="log-scroll">${rows}</div>
+    </div>`;
+}
+</script>
+</body>
+</html>
