@@ -37,4 +37,4 @@ journalctl --user -u focus-tracing -f
 
 ## Cost
 
-~100 captures/day. Haiku (~$0.10–0.20/day) is recommended for capture; Opus for recap.
+approx 100 captures/day. Haiku (~$0.10–0.20/day) is recommended for capture; Opus for recap.
