@@ -1,0 +1,14 @@
+[Unit]
+Description=Focus Tracing capture daemon
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/src/traces
+ExecStart=/usr/bin/env uv run %h/src/traces/capture.py
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=graphical-session.target
